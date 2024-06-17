@@ -1,0 +1,14 @@
+#Recuperados do Envinronment:
+vpc_id: "${{ values.vpc_id }}"
+subnet_id: "${{ values.subnet_id }}"
+keypar: "${{ values.keypair }}"
+#EC2
+cluster_name: "${{ values.cluster_name }}"
+instance_type: "${{ values.instance_type }}"
+volume_size: "${{ values.volumesize }}"
+#RDS
+rds_instance_name: "${{ values.rds_instance_name }}"
+rds_instance_type: "${{ values.rds_instance_type }}"
+rds_volume_size: "${{ values.rds_volume_size }}"
+db_username: "${{ values.db_username }}"
+db_password: "${{ values.db_password }}"

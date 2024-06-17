@@ -1,0 +1,121 @@
+image:
+  name: hashicorp/terraform:light
+  entrypoint: [""]
+
+stages:
+  - deploy_all
+  - deploy_vm
+  - destroy_all
+  - destroy_vm
+  - kubeconfig
+  - start-instance
+  - stop-instance
+
+variables:
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  AWS_REGION: ${AWS_DEFAULT_REGION}
+  KEYPAIR: ${KEYPAIR}
+  DEPLOY_VM_JOB: 'false'
+  DEPLOY_ALL_JOB: 'false'
+  DESTROY_VM_JOB: 'false'
+  DESTROY_ALL_JOB: 'false'
+  KUBECONFIG_JOB: 'false'
+  REGISTRY_HOST: ${REGISTRY_HOST}
+  REGISTRY_USER: ${REGISTRY_USER}
+  REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
+  START_INSTANCE_JOB: 'false'
+  STOP_INSTANCE_JOB: 'false'
+
+deploy_all:
+  stage: deploy_all
+  script:
+    - cd ./persistente
+    - terraform --version
+    - terraform init
+    - terraform apply -input=false -auto-approve
+    - cd ../descartavel
+    - terraform init
+    - terraform apply -var "registry_host=$REGISTRY_HOST" -var "registry_user=$REGISTRY_USER" -var "registry_password=$REGISTRY_PASSWORD" -input=false -auto-approve 
+  rules:  
+    - if: $DEPLOY_ALL_JOB == "true"
+
+deploy_vm:
+  stage: deploy_vm
+  script:
+    - cd ./descartavel
+    - terraform --version
+    - terraform init
+    - terraform apply -var "registry_host=$REGISTRY_HOST" -var "registry_user=$REGISTRY_USER" -var "registry_password=$REGISTRY_PASSWORD" -input=false -auto-approve 
+  rules:
+    - if: $DEPLOY_VM_JOB == "true" 
+
+destroy_all:
+  stage: destroy_all
+  script:
+    - cd ./descartavel
+    - terraform init
+    - terraform destroy -var "registry_host=$REGISTRY_HOST" -var "registry_user=$REGISTRY_USER" -var "registry_password=$REGISTRY_PASSWORD" -input=false -auto-approve
+    - cd ../persistente
+    - terraform --version
+    - terraform init
+    - terraform destroy -auto-approve
+  rules:
+    - if: $DESTROY_ALL_JOB == "true"
+
+destroy_vm:
+  stage: destroy_vm
+  script:
+    - cd ./descartavel
+    - terraform --version
+    - terraform init
+    - terraform destroy -var "registry_host=$REGISTRY_HOST" -var "registry_user=$REGISTRY_USER" -var "registry_password=$REGISTRY_PASSWORD" -input=false -auto-approve 
+  rules:
+    - if: $DESTROY_VM_JOB == "true"
+
+kubeconfig:
+  stage: kubeconfig
+  script:
+    - apk update
+    - apk add python3 py3-pip
+    - pip3 install awscli
+    - aws --version
+    - wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
+    - echo "${KEYPAIR}" > cert.pem
+    - chmod 600 cert.pem
+    - mkdir .kube
+    - HOST=`aws ec2 describe-instances --filters 'Name=tag:Name,Values=acme-liferay-ec2'   --output text --query 'Reservations[*].Instances[*].PublicIpAddress'`
+    - scp -i ./cert.pem -o StrictHostKeyChecking=no ec2-user@$HOST:/home/ec2-user/.kube/config .kube
+    - yq e ' del(.clusters[0].cluster.certificate-authority-data) | .clusters[0].cluster.insecure-skip-tls-verify = true' -i .kube/config
+    - sed -i "s|0.0.0.0|$HOST|g" .kube/config
+  rules:
+    - if: $KUBECONFIG_JOB == "true"
+  artifacts:
+    paths:
+      - .kube/config
+    expire_in: 1 week
+
+start-instance:
+  stage: start-instance
+  script:
+    - apk update
+    - apk add python3 py3-pip
+    - pip3 install awscli
+    - aws --version
+    - ID_INSTANCE=`aws ec2 describe-instances --filters 'Name=tag:Name,Values=acme-liferay-ec2'   --output text --query 'Reservations[*].Instances[*].InstanceId'`
+    - aws ec2 start-instances --instance-ids $ID_INSTANCE
+  rules:
+    - if: $START_INSTANCE_JOB == "true"
+
+stop-instance:
+  stage: stop-instance
+  script:
+    - apk update
+    - apk add python3 py3-pip
+    - pip3 install awscli
+    - aws --version
+    - ID_INSTANCE=`aws ec2 describe-instances --filters 'Name=tag:Name,Values=acme-liferay-ec2'   --output text --query 'Reservations[*].Instances[*].InstanceId'`
+    - aws ec2 stop-instances --instance-ids $ID_INSTANCE
+  rules:
+    - if: $STOP_INSTANCE_JOB == "true"    
+

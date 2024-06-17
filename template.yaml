@@ -1,0 +1,209 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: liferay-cluster
+  title: Cluster Liferay
+  description: Criação de um ambiente liferay completo com EC2, Kubernetes, RDS e EFS
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - platform-templates
+    - k8s
+    - ec2
+    - liferay
+    - rds
+    - efs
+    - terraform
+spec:
+  owner: veecode/platform
+  type: Infra
+  parameters:
+    ### Enviroment Configuration
+    - title: Enviroment Settings
+      properties:
+        environmentResource:
+          title: Selecione o Environment que o projeto será provisionado.
+          type: object
+          ui:field: ResourcePicker
+          ui:options:
+            catalogFilter:
+              kind: [Environment]
+
+    ### Project Configuration
+    - title: EC2 Configuration
+      required:
+        - cluster_name
+        - instance_type
+        - owner
+      properties:
+        cluster_name:
+          title: EC2 Cluster name
+          type: string
+          pattern: '^([a-z0-9]|[.]|[_]|[-])*$'
+          description: Nome do Cluster
+        owner:
+          title: Owner
+          type: string
+          description: Owner of the component
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+        instance_type:
+          title: Node instance type
+          type: string
+          description: Selecione o tamanho da instância
+          default: t3.medium
+          enum:
+            - t3.medium
+            - t3.xlarge
+            - m5.large
+            - m5.xlarge
+            - t4g.small
+            - m6g.large
+            - m6g.xlarge 
+          enumNames:
+            - "t3.medium (vCPU:2, Mem: 4Gib)"
+            - "t3.xlarge (vCPU:4, Mem: 16Gib)"
+            - "m5.large (vCPU:2, Mem: 8Gib)"
+            - "m5.xlarge (vCPU:4, Mem: 16Gib)"
+            - "t4g.small (vCPU:2, Mem: 2Gib)"
+            - "m6g.large (vCPU:2, Mem: 8Gib) ARM"
+            - "m6g.xlarge (vCPU:4, Mem: 16Gib) ARM"
+        volumesize:
+          title: Volume Size
+          type: string
+          pattern: '^(3[0-9]|[4-9][0-9]|[1-2][0-9]{2}|300)$'
+          default: '30'
+          description: Especifique o tamanho do Volume EBS da instância
+
+    ### RDS Configuration
+    - title: RDS Configuration
+      required:
+        - rds_instance_name
+        - database_name
+        - rds_instance_type
+      properties:
+        rds_instance_name:
+          title: Nome RDS
+          type: string
+          pattern: '^[a-z0-9.]*$'
+          ui:help: 'This field cannot contain special characters, "-" or "_"'
+          description: Nome da instância RDS
+        rds_instance_type:
+          title: Tipo de instância RDS
+          type: string
+          description: Especifique o tipo de instância RDS
+          default: db.t3.micro
+          enum:
+            - db.t3.micro
+            - db.m5.large
+            - db.m5.xlarge
+            - db.t4g.micro
+            - db.m6g.large
+            - db.m6g.xlarge
+          enumNames:
+            - "db.t3.micro (vCPU:2, Mem: 1Gib)"
+            - "db.m5.large (vCPU:2, Mem: 8Gib)"
+            - "db.m5.xlarge (vCPU:4, Mem: 16Gib)"
+            - "db.t4g.micro (vCPU:2, Mem: 1Gib) ARM"
+            - "db.m6g.large (vCPU:2, Mem: 8Gib) ARM"
+            - "db.m6g.xlarge (vCPU:4, Mem: 16Gib) ARM"
+        rds_volume_size:
+          title: Volume Size
+          type: string
+          pattern: '^(3[0-9]|[4-9][0-9]|[1-2][0-9]{2}|300)$'
+          default: '30'
+          description: Especifique o tamanho do volume do RDS
+        database_name:
+          title: Nome do banco de dados
+          type: string
+          pattern: '^[a-z0-9.]*$'
+          description: Especifique o nome do banco de dados que será criado dentro do RDS
+        db_username:
+          title: Usuário admin
+          type: string
+          description: Especifique o nome do Usuário Admin que será utilizado
+        db_password:
+          title: Senha do Usuário
+          type: string
+          description: Especifique a senha do usuário que será utilizado
+
+    ### Location Configuration
+    - title: Choose a location
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository Location
+          type: string
+          description: Choose a location to create the EKS Cluster Pipeline
+          reuseName: cluster_name
+          ui:field: RepoUrlSelector
+          ui:options:
+            allowedHosts:
+              - gitlab.vertigo-devops.com
+        visibility:
+          title: Repository visibility
+          type: string
+          enum:
+            - public
+            - private
+          enumNames:
+            - 'Public'
+            - 'Private'
+          default: private
+
+  steps:
+    - id: template
+      name: Fetch Skeleton + Template
+      action: fetch:template
+      input:
+        url: ./skeleton      
+        values:
+          cluster_name: ${{ parameters.cluster_name }}
+          volumesize: ${{ parameters.volumesize }}
+          owner: ${{ parameters.owner }}
+          instance_type: ${{ parameters.instance_type }}
+          keypair: ${{ parameters.environmentResource.keypair }}
+          environment: ${{ parameters.environmentResource.name }}
+          rds_instance_name: ${{ parameters.rds_instance_name }}
+          rds_volume_size: ${{ parameters.rds_volume_size }}
+          rds_instance_type: ${{ parameters.rds_instance_type }}
+          db_username: ${{ parameters.db_username }}
+          db_password: ${{ parameters.db_password }}
+          vpc_id: ${{ parameters.environmentResource.vpc_id }}
+          vpc_region: ${{ parameters.environmentResource.vpc_region }}
+          subnet_id: ${{ parameters.environmentResource.subnet_id }}
+          terraformStateBucketName: ${{ parameters.environmentResource.terraformStateBucketName }}
+          terraformStateBucketRegion: ${{ parameters.environmentResource.terraformStateBucketRegion }}
+          host: ${{ parameters.repoUrl | parseRepoUrl | pick('host') }}
+          destination: ${{ parameters.repoUrl | parseRepoUrl | pick('owner') }}/${{ parameters.repoUrl | parseRepoUrl | pick('repo') }}
+          specPublish: ${{ parameters.specPublish | parseRepoUrl | pick('owner') }}/${{ parameters.specPublish | parseRepoUrl | pick('repo') }}
+          specPublishRepo: ${{ parameters.specPublish | parseRepoUrl | pick('repo') }}
+          specPublishBranch: ${{ parameters.specPublishBranch }}
+          repoUrl: ${{ (parameters.repoUrl | parseRepoUrl).owner }}/${{ (parameters.repoUrl | parseRepoUrl).repo }}
+          #componentId: ${{ parameters.componentId }}
+
+    - id: publish
+      name: Publish in gitlab
+      action: publish:gitlab
+      input:
+        allowedHosts: ["gitlab.vertigo-devops.com"]
+        description: Liferay + EC2 K3D CLUSTER + EFS
+        repoUrl: ${{ parameters.repoUrl }}
+        repoVisibility: ${{ parameters.visibility }}
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}

@@ -1,0 +1,15 @@
+apiVersion: veecode.backstage.io/v1alpha1
+kind: Cluster
+metadata:
+  name: "${{ values.cluster_name }}"
+  environment:
+    cluster_type: ec2
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    gitlab.com/project-slug: ${{ values.repoUrl }}
+    gitlab.com/jobs: Deploy_all:DEPLOY_ALL_JOB,Deploy_vm:DEPLOY_VM_JOB,Destroy_all:DESTROY_ALL_JOB,Destroy_vm:DESTROY_VM_JOB,Kubeconfig:KUBECONFIG_JOB,Start_vm:START_INSTANCE_JOB,Stop_vm:STOP_INSTANCE_JOB
+spec:
+  type: ec2
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  environment: 'environment:default/${{ values.environment }}'

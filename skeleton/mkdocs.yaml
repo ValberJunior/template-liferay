@@ -1,0 +1,8 @@
+site_name: liferay
+site_description: liferay
+
+nav:
+  - Introduction: index.md
+
+plugins:
+  - techdocs-core
